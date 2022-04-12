@@ -7,6 +7,7 @@ const passport = require("passport")
 const passportLocalMongoose = require("passport-local-mongoose")
 const GoogleStrategy = require("passport-google-oauth20").Strategy
 const findOrCreate = require("mongoose-findorcreate")
+const FacebookStrategy = require("passport-facebook").Strategy
 
 const app = express()
 
@@ -53,8 +54,8 @@ passport.deserializeUser((id, done) => {
 passport.use(
 	new GoogleStrategy(
 		{
-			clientID: process.env.CLIENT_ID,
-			clientSecret: process.env.CLIENT_SECRET,
+			clientID: process.env.GOOGLE_CLIENT_ID,
+			clientSecret: process.env.GOOGLE_CLIENT_SECRET,
 			callbackURL: "http://localhost:3000/auth/google/secrets",
 			userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
 		},
@@ -66,11 +67,28 @@ passport.use(
 	)
 )
 
+passport.use(
+	new FacebookStrategy(
+		{
+			clientID: process.env.FACEBOOK_APP_ID,
+			clientSecret: process.env.FACEBOOK_APP_SECRET,
+			callbackURL: "http://localhost:3000/auth/facebook/secrets",
+		},
+		function (accessToken, refreshToken, profile, cb) {
+			User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+				return cb(err, user)
+			})
+		}
+	)
+)
+
 app.get("/", (req, res) => {
 	res.render("home")
 })
 
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile"] }))
+
+app.get("/auth/facebook", passport.authenticate("facebook"))
 
 app.get("/login", (req, res) => {
 	res.render("login")
@@ -88,9 +106,26 @@ app.get(
 	}
 )
 
+app.get(
+	"/auth/facebook/secrets",
+	passport.authenticate("facebook", { failureRedirect: "/login" }),
+	function (req, res) {
+		// Successful authentication, redirect home.
+		res.redirect("/secrets")
+	}
+)
+
 app.get("/secrets", (req, res) => {
 	if (req.isAuthenticated()) {
 		res.render("secrets")
+	} else {
+		res.redirect("/login")
+	}
+})
+
+app.get("/submit", (req, res) => {
+	if (req.isAuthenticated()) {
+		res.render("submit")
 	} else {
 		res.redirect("/login")
 	}
